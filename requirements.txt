@@ -1,0 +1,20 @@
+fastapi
+uvicorn
+databases[aiomysql]
+sqlalchemy
+pydantic
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+python-dotenv
+aiohttp
+cryptography
+python-socketio
+openai
+asyncmy==0.2.10
+bce-python-sdk
+aio_pika
+pika
+gunicorn
+pymilvus
+# FlagEmbedding
