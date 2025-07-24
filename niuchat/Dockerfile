@@ -14,4 +14,4 @@ COPY . .
 EXPOSE 9000
 
 # CMD sh -c "python try_connect.py && python try_init_db.py && gunicorn main:app --workers $((1 * $(nproc) + 1)) --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:9000"
-CMD sh -c "python try_connect.py && python try_init_db.py && gunicorn main:app --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:9000"
+CMD sh -c "python try_connect.py && python try_init_db.py && gunicorn main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:9000"
