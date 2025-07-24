@@ -17,15 +17,16 @@ import database
 import schemas
 from utils.chromadb_helpers import init_chromadb
 from utils.util import get_system_prompt, get_userInfo_from_token
+import pandas as pd
 
 print(f"TIHS IS LLM_API_KEY: {config.LLM_API_KEY}")
 print(f"TIHS IS LLM_BASE_URL: {config.LLM_BASE_URL}")
 print(f"TIHS IS LLM_MODEL_NAME: {config.LLM_MODEL_NAME}")
 
 if config.USE_CHROMADB:
-    with open("./faq.json", 'rb') as f:
-        DATALIST = json.loads(f.read())
-        init_chromadb(datasets=DATALIST)
+    with open("./newqa.xlsx", 'rb') as f:
+        df = pd.read_excel(f, index_col=0)
+        init_chromadb(datasets=df)
 
 static_files = {
     '/static': './public',
@@ -239,7 +240,8 @@ class WschatNamespace(socketio.AsyncNamespace):
                     # 整理成上下文提交给大模型
                     chat_context = []
 
-                    final_prompt = get_system_prompt(userquestion)
+                    # 得到系统提示词并且去知识库找到相关问题作为少知识提示
+                    final_prompt = await get_system_prompt(userquestion)
                     chat_context.append(Message(role=RoleEnum.system, content=final_prompt))
 
                     for key, chat in enumerate(history):

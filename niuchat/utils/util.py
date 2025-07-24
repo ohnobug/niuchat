@@ -113,13 +113,15 @@ async def check_verify_code(db, phone_number: str, code: str, purpose: schemas.U
     await db.commit()
 
 
-def get_system_prompt(userquestion: str) -> str:
+async def get_system_prompt(userquestion: str) -> str:
     # 获取嵌入
-    vectors = get_embedding(userquestion)
+    vectors = await get_embedding(userquestion)
 
     if config.USE_CHROMADB:
         search_results = chroma_retrieved_knowledge(vectors)
         formatted_context = chroma_format_knowledge_for_prompt(search_results)
+    else:
+        raise
     # else:
     #     search_results = milvus_retrieved_knowledge(vectors)
     #     formatted_context = milvus_format_knowledge_for_prompt(search_results)
