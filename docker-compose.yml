@@ -1,38 +1,38 @@
 services:
-  # 数据库
-  mariadb:
-    image: mariadb:11.8.2-ubi9
-    environment:
-      - MARIADB_ROOT_PASSWORD=Goodnewchat
-      - MARIADB_USER=bn_moodle
-      - MARIADB_PASSWORD=Goodnewchat
-      - MARIADB_DATABASE=niuchat
-      - MARIADB_CHARACTER_SET=utf8mb4
-      - MARIADB_COLLATE=utf8mb4_unicode_ci
-    ports:
-      - 3306:3306
-    volumes:
-      - niuchat_mariadb_data:/var/lib/mysql
-    networks:
-      - niuchat_network
+  # # 数据库
+  # mariadb:
+  #   image: mariadb:11.8.2-ubi9
+  #   environment:
+  #     - MARIADB_ROOT_PASSWORD=Goodnewchat
+  #     - MARIADB_USER=bn_moodle
+  #     - MARIADB_PASSWORD=Goodnewchat
+  #     - MARIADB_DATABASE=niuchat
+  #     - MARIADB_CHARACTER_SET=utf8mb4
+  #     - MARIADB_COLLATE=utf8mb4_unicode_ci
+  #   ports:
+  #     - 3306:3306
+  #   volumes:
+  #     - niuchat_mariadb_data:/var/lib/mysql
+  #   networks:
+  #     - niuchat_network
 
-  # 消息队列
-  rabbitmq:
-    image: bitnami/rabbitmq:4.1.2
-    environment:
-      - RABBITMQ_MANAGEMENT_ALLOW_WEB_ACCESS=true
-      - RABBITMQ_USERNAME=user
-      - RABBITMQ_PASSWORD=bitnami
-    # ports:
-    #   - "5672:5672"
-    #   - "15672:15672"
-    networks:
-      - niuchat_network
+  # # 消息队列
+  # rabbitmq:
+  #   image: bitnami/rabbitmq:4.1.2
+  #   environment:
+  #     - RABBITMQ_MANAGEMENT_ALLOW_WEB_ACCESS=true
+  #     - RABBITMQ_USERNAME=user
+  #     - RABBITMQ_PASSWORD=bitnami
+  #   # ports:
+  #   #   - "5672:5672"
+  #   #   - "15672:15672"
+  #   networks:
+  #     - niuchat_network
 
   # 对话socket.io服务
   niuchat_ws:
     build:
-      context: ./
+      context: ./niuchat
       dockerfile: Dockerfile
     environment:
       - DB_USER=root
@@ -52,12 +52,12 @@ services:
       - RABBITMQ_URL=amqp://user:bitnami@rabbitmq:5672/
     restart: unless-stopped
     volumes:
-      - ./milvus_db:/app/milvus_db/
+      - ./milvus_db:/app/milvus_db
     ports:
       - "9000:9000"
-    depends_on:
-      - mariadb
-      - rabbitmq
+    # depends_on:
+    #   - mariadb
+    #   - rabbitmq
     networks:
       - niuchat_network
 
