@@ -97,7 +97,6 @@ def init_chromadb(datasets: pd.DataFrame):
         print(f"\n数据导入完成。总共插入: {total} 条，总共跳过 (已存在): {skipped_count} 条")
         print(f"集合 '{collection_name}' 中现在的总条目数: {collection.count()}")
 
-        print(count)
         if count != 0 and len(ids_to_insert) > 0:
             print(f"准备批量插入最后部分，共 {len(ids_to_insert)} 条新数据...")
             collection.add(
@@ -155,7 +154,7 @@ def chroma_format_knowledge_for_prompt(search_results: dict, threshold: float = 
         category = metadata.get('category', 'N/A')
         
         # 构建单个知识点的格式化字符串
-        part = f"参考资料[{knowledge_counter}]:\n- 问题: {question}\n- 回答: {answer}\n- 分类: {category}\n"
+        part = f"参考资料[{knowledge_counter}]:\n- 问题: {question}\n- 回答: {answer}\n"
         context_parts.append(part)
 
     # 如果没有找到任何低于阈值的资料，可以返回提示信息

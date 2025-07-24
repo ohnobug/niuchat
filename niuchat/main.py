@@ -4,20 +4,19 @@ import sys
 from utils.llm import Message, RoleEnum, llmchat
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
-from datetime import datetime
 import io
-import json
-from typing import List
-import socketio
-from sqlalchemy import insert, select, update
+import pandas as pd
 import config
+import database
+import socketio
+import schemas
+from typing import List
+from datetime import datetime
+from sqlalchemy import insert, select, update
 from database import AsyncSessionLocal, TurChatHistory, TurChatSessions, TurUsers
 from sqlalchemy.ext.asyncio.session import AsyncSession
-import database
-import schemas
 from utils.chromadb_helpers import init_chromadb
-from utils.util import get_system_prompt, get_userInfo_from_token
-import pandas as pd
+from utils.util import get_knowledge_prompt, get_userInfo_from_token, get_language_name
 
 print(f"TIHS IS LLM_API_KEY: {config.LLM_API_KEY}")
 print(f"TIHS IS LLM_BASE_URL: {config.LLM_BASE_URL}")
@@ -184,6 +183,43 @@ class WschatNamespace(socketio.AsyncNamespace):
                     chat_session_id = requestData.chat_session_id
                     userquestion = requestData.text.strip()
                     
+                    # 查找该会话的所有历史记录
+                    query_stmt = select(
+                        TurChatHistory.id, 
+                        TurChatHistory.user_id,
+                        TurChatHistory.chat_session_id,
+                        TurChatHistory.sender,
+                        TurChatHistory.text,
+                        TurChatHistory.created_at
+                    ).where(
+                        TurChatHistory.chat_session_id == chat_session_id,
+                        TurChatHistory.user_id == userid
+                    ).order_by(
+                        TurChatHistory.id.asc()
+                    )
+                    result = await db.execute(query_stmt)
+
+                    history: List[TurChatHistory] = result.mappings().all()            
+                    historyLength = len(history)
+
+                    # 整理成上下文提交给大模型
+                    chat_context = []
+
+                    # 得到系统提示词
+                    detected_language = get_language_name(userquestion)
+                    chat_context.append(Message(role=RoleEnum.system, content=config.LLM_SYSTEM_PROMPT.format(language=detected_language)))
+
+                    for key, chat in enumerate(history):
+                        if chat.sender == 'user':
+                            chat_context.append(Message(role=RoleEnum.user, content=chat.text))
+                        else:
+                            chat_context.append(Message(role=RoleEnum.assistant, content=chat.text))
+
+                    # 去知识库找到相关问题作为少样本提示
+                    final_prompt = await get_knowledge_prompt(userquestion)
+                    chat_context.append(Message(role=RoleEnum.user, content=final_prompt))
+
+
                     # 插入消息
                     query_stmt = insert(TurChatHistory).values(
                         user_id = userid,
@@ -217,45 +253,6 @@ class WschatNamespace(socketio.AsyncNamespace):
                     ).model_dump_json(), to=sid)
                     await db.commit()
 
-
-                    # 查找该会话的所有历史记录
-                    query_stmt = select(
-                        TurChatHistory.id, 
-                        TurChatHistory.user_id,
-                        TurChatHistory.chat_session_id,
-                        TurChatHistory.sender,
-                        TurChatHistory.text,
-                        TurChatHistory.created_at
-                    ).where(
-                        TurChatHistory.chat_session_id == chat_session_id,
-                        TurChatHistory.user_id == userid
-                    ).order_by(
-                        TurChatHistory.id.asc()
-                    )
-                    result = await db.execute(query_stmt)
-
-                    history: List[TurChatHistory] = result.mappings().all()            
-                    historyLength = len(history)
-
-                    # 整理成上下文提交给大模型
-                    chat_context = []
-
-                    # 得到系统提示词并且去知识库找到相关问题作为少知识提示
-                    final_prompt = await get_system_prompt(userquestion)
-                    chat_context.append(Message(role=RoleEnum.system, content=final_prompt))
-
-                    for key, chat in enumerate(history):
-                        # 判断用户提供的id与数据库的id是否对应
-                        if chat.text == "" and chat.sender == 'ai' and key == historyLength - 1:
-                            if chat.id != aiMessageId:
-                                await self.emit('error', {'data': '没找到新建的AI对话记录'}, to=sid)
-                                raise
-                            continue
-
-                        if chat.sender == 'user':
-                            chat_context.append(Message(role=RoleEnum.user, content=chat.text))
-                        else:
-                            chat_context.append(Message(role=RoleEnum.assistant, content=chat.text))
 
                     # 流式输出到浏览器
                     text_buffer = io.StringIO()

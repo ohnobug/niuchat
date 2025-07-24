@@ -9,18 +9,26 @@ import pandas as pd
 import config
 from utils.chromadb_helpers import init_chromadb
 from utils.llm import Message, RoleEnum, get_embedding, llmchat
-from utils.util import get_system_prompt, p
+from utils.util import get_knowledge_prompt, p, get_language_name
 
 # 得到上下文
 async def get_chat_context(userquestion):
     chat_context = []
-    final_prompt = await get_system_prompt(userquestion)
-    chat_context.append(Message(role=RoleEnum.system, content=final_prompt))
-    chat_context.append(Message(role=RoleEnum.user, content=userquestion))
+    
+    detected_language = get_language_name(userquestion)
+    
+    # 得到系统提示词
+    chat_context.append(Message(role=RoleEnum.system, content=config.LLM_SYSTEM_PROMPT.format(language=detected_language)))
+
+    retrieved_knowledge = await get_knowledge_prompt(userquestion)
+    chat_context.append(Message(role=RoleEnum.user, content=retrieved_knowledge))
     return chat_context
 
 async def ai_retun(question):
     chat_context = await get_chat_context(question)
+    
+    print(chat_context)
+    
     text_buffer = io.StringIO()
     async for eachtoken in llmchat(chat_context):
         text_buffer.write(eachtoken)
@@ -63,29 +71,38 @@ async def generate_embedding_save_to_excel():
 # 测试大语言模型
 async def test_llm():
     with open("./newqa.xlsx", 'rb') as f:
-        df = pd.read_excel(f, index_col=0)
+        faqdf = pd.read_excel(f, index_col=0)
 
     if config.USE_CHROMADB:
-        init_chromadb(datasets=df)
+        init_chromadb(datasets=faqdf)
+
+    # userquestion = "同一用户是否可以注册多个账户？"
+    # final_prompt = await get_knowledge_prompt(userquestion)
+    # print(final_prompt)
+    # print(await ai_retun(userquestion))
+
+    with open("./真实用户问答.csv", 'rb') as f:
+        df = pd.read_csv(f, index_col=0)
 
     df = df.iloc[:10]
-    semaphore = asyncio.Semaphore(20)
+    semaphore = asyncio.Semaphore(100)
 
     async def worker(task_name, text):
         async with semaphore:
-            print(f"开始任务：{task_name}")
+            print(f"开始任务: {task_name}")
             return await ai_retun(text)
-    
+
     tasks = [
-        worker(task_name=f"问题 = {row.question}", text=row.question)
+        worker(task_name=f"问题 = {row.question} ID = {row.Index}", text=row.question)
         for row in df.itertuples()
     ]
 
     llm_results = await asyncio.gather(*tasks)
 
     df['llm_result'] = llm_results
-    
-    print(df.loc[:, ['question', 'answer', 'llm_result']])
 
-    
+    save = df.loc[:, ['question', 'answer', 'llm_result']]
+    with open("result.json", "wb") as f:
+        save.to_json(f, indent=4, force_ascii=False, orient="records")
+
 asyncio.run(test_llm())

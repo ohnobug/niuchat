@@ -18,6 +18,8 @@ from fastapi import HTTPException
 import schemas
 from .llm import get_embedding
 from .chromadb_helpers import chroma_format_knowledge_for_prompt, chroma_retrieved_knowledge
+import pycountry
+from langdetect import detect, LangDetectException
 # from .milvus_helpers import milvus_format_knowledge_for_prompt, milvus_retrieved_knowledge
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -113,7 +115,10 @@ async def check_verify_code(db, phone_number: str, code: str, purpose: schemas.U
     await db.commit()
 
 
-async def get_system_prompt(userquestion: str) -> str:
+async def get_knowledge_prompt(userquestion: str) -> str:
+    """
+    查询知识库，然后完整的系统提示词
+    """
     # 获取嵌入
     vectors = await get_embedding(userquestion)
 
@@ -126,28 +131,69 @@ async def get_system_prompt(userquestion: str) -> str:
     #     search_results = milvus_retrieved_knowledge(vectors)
     #     formatted_context = milvus_format_knowledge_for_prompt(search_results)
 
-
-    # 定义你的系统提示词和最终的提示词模板
-    system_prompt = """你是一个专业的ME Pass钱包客服机器人。
-你的任务是根据我提供的【参考资料】来回答用户的问题。
-请严格遵守以下规则：
-    1. 你的回答必须完全基于【参考资料】。
-    2. 如果【参考资料】为空或与问题不相关，你必须明确回答“根据现有资料，我暂时无法回答您的问题，请联系人工客服。”，绝对不能自己编造答案。
-    3. 你的语气应该友好、专业、乐于助人。
-    4. 根据用户的语言回答。
-    """
-
     # 提示词模板
-    final_prompt_template = """{system_prompt}
-
+    final_prompt_template = """
 【参考资料】
 {context}
+
+【用户问题】
+{userquestion}
     """
 
     final_prompt = final_prompt_template.format(
-        system_prompt=system_prompt,
-        context=formatted_context if formatted_context else "无", # 如果上下文为空，明确告知模型
-        user_question=userquestion
+        context=formatted_context if formatted_context else "无",
+        userquestion=userquestion
     )
 
     return final_prompt
+
+
+def get_language_name(text: str, default_lang: str = 'English') -> str:
+    """
+    检测输入文本的语言，并返回该语言的英文全称。
+    
+    例如:
+    "Hello world" -> "English"
+    "你好世界" -> "Chinese"
+    "Bonjour le monde" -> "French"
+    "Hola mundo" -> "Spanish"
+
+    参数:
+    text (str): 需要检测语言的文本字符串。
+    default_lang (str): 如果检测失败或文本为空，返回的默认语言名称。
+
+    返回:
+    str: 检测到的语言的英文名称。
+    """
+    # 确保文本不为空
+    if not text or not text.strip():
+        return default_lang
+
+    try:
+        # 1. 使用 langdetect 检测语言代码
+        lang_code = detect(text)
+        
+        # 2. 使用 pycountry 将语言代码转换为语言对象
+        # langdetect 对中文的检测结果可能是 'zh-cn', 'zh-tw'，但 pycountry 需要两位代码 'zh'
+        if lang_code.startswith('zh'):
+            lang_code = 'zh'
+            
+        language = pycountry.languages.get(alpha_2=lang_code)
+        
+        # 3. 返回语言的官方英文名称
+        if language:
+            # 对于中文，直接返回 'Chinese' 可能更通用
+            if language.name == 'Chinese':
+                return 'Chinese'
+            return language.name
+        else:
+            return default_lang
+            
+    except LangDetectException:
+        # 如果 langdetect 无法可靠地检测出语言 (例如文本太短或太模糊)
+        # print(f"Warning: Could not detect language for text: '{text[:50]}...'. Defaulting to {default_lang}.")
+        return default_lang
+    except Exception as e:
+        # 捕获其他潜在错误
+        # print(f"An unexpected error occurred during language detection: {e}")
+        return default_lang

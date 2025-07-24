@@ -1,0 +1,52 @@
+[
+    {
+        "question":"My 身份验证 Pending plz approve my 身份验证",
+        "answer":"please provide the current verification status screenshot",
+        "llm_result":"We have received your identity verification request and are currently processing it. Please be patient, and you will receive an update within 24 hours. If you have any further questions or need assistance, feel free to ask!"
+    },
+    {
+        "question":"my kyc hasn't been approved",
+        "answer":"Could you please provide a screenshot of your submission from ME 账号 page so we can assist you further?",
+        "llm_result":"Based on the information provided, it seems that your KYC (Know Your Customer) review has not been processed yet. We are currently working on verifying your details. If you haven't completed a specific step or if there's any missing information in your application, please check back periodically for updates. Should you encounter issues related to using the original wallet or have difficulty recovering your account, kindly refer to our instructions for resolving such situations. For further assistance, feel free to contact customer service."
+    },
+    {
+        "question":"https:\/\/public.mehp.world\/2025\/06\/09\/b356c406ae63943b2cfcb2a16756593c.jpg",
+        "answer":"Thank you. We highly appreciate it.<br\/>I will highlight this issue to the relevant team. They will have your verification reviewed in a short while.<br\/>Do wait patiently and recheck in 24 hours.",
+        "llm_result":"The image you provided is unclear. Please specify the details or issues related to the image, and I will be able to assist you better."
+    },
+    {
+        "question":"My kyc is pending please approve my kyc",
+        "answer":"please provide the current verification status screenshot",
+        "llm_result":"To help resolve your situation, could you please provide a screenshot of the ME account page related to your KYC status? We will then submit this information to the relevant team for approval. Thank you!"
+    },
+    {
+        "question":"Hello, can you help me? My 身份验证 is not yet validated even though I did it 3 days ago.",
+        "answer":"Can you send us the screenshot of the ME 账号 page in your ME Pass App? I will highlight this issue to the relevant team to have it resolved quickly.",
+        "llm_result":"We understand your concern. It seems that your identity verification application may be under review by our team. If the process has exceeded three days, we kindly request you to send a screenshot of your ME account page to us for further assistance. We will look into the matter promptly and provide support where needed. Thank you for your patience."
+    },
+    {
+        "question":"https:\/\/public.mehp.world\/2025\/03\/30\/a644da39aae917e6fedb8ada13441eb0.jpg",
+        "answer":"Could you please provide a screenshot of your submission from ME 账号 page so we can assist you further?",
+        "llm_result":"Please provide a description of the specific content in the image for me to better assist you. If there is an issue with the image related to order number 789128311552094209, please ensure that no spaces are added after any words and clearly describe the problem."
+    },
+    {
+        "question":"cómo transferir lo que tengo de saldo",
+        "answer":"may i know where did you wish to transfer?",
+        "llm_result":"Para realizar una transferencia del saldo en su cuenta, primero debe completar el proceso de verificación de identidad. Si necesita algún ayuda adicional o tiene más preguntas, estaré encantado de asistirle."
+    },
+    {
+        "question":"I have done verification for the past one week but it's still under verification what supposed to be 72 hours is now taking more than a week please help out",
+        "answer":"Can you send us the screenshot of the ME 账号 page in your ME Pass App? I will highlight this issue to the relevant team to have it resolved quickly.",
+        "llm_result":"Certainly! Please provide a screenshot of your ME account page in your ME Pass App. We will forward this to the relevant team for resolution. Thank you for your patience and understanding."
+    },
+    {
+        "question":"Porque no funciona la verificación",
+        "answer":"answer1: provide screenshot\n\nanswer2: Hello, since we unable to get any respond on your reply\/inquiry for a long time, this conversation will be closed. If you still have questions in the future, please reach out to us.",
+        "llm_result":"Por favor, envíe una captura de pantalla de su estado actual de verificación desde su aplicación ME Pass con una foto completa y sin modificaciones. Puede hacer esto presionando el ícono del ME 账号在应用程序中。"
+    },
+    {
+        "question":"Please verify my kyc",
+        "answer":"please provide the current verification status screenshot",
+        "llm_result":"To verify your KYC information, you need to submit your account and take a facial photo for identity verification. Please confirm whether you have completed this step. If you require further assistance or encounter any issues during the process, feel free to ask."
+    }
+]

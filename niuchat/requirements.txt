@@ -21,3 +21,7 @@ pymilvus
 chromadb
 pysqlite3-binary
 openpyxl
+tabulate
+scikit-learn
+pycountry
+langdetect
