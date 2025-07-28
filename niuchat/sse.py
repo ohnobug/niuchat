@@ -1,7 +1,5 @@
 __import__('pysqlite3')
 import sys
-
-# Monkey patch sqlite3
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import io
@@ -11,18 +9,15 @@ import config
 import database
 import schemas
 import asyncio
-import re
-
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, List, Dict, Any
-from datetime import datetime
-from sqlalchemy import insert, select, update
+from typing import AsyncGenerator
+from sqlalchemy import select, update
 from database import AsyncSessionLocal, TurChatHistory, TurChatSessions, TurUsers, get_db
 from utils.chromadb_helpers import init_chromadb
 from utils.util import get_knowledge_prompt, get_userInfo_from_token, get_language_name
 from utils.llm import Message, RoleEnum, llmchat
 
-from fastapi import FastAPI, Request, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sse_starlette.sse import EventSourceResponse
 
@@ -64,17 +59,17 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"Invalid credentials: {e}")
 
+
 # --- API 接口 ---
 @app.post("/chat/sessions", response_model=schemas.ChatNewsessionOut)
 async def create_chat_session(
     request_data: schemas.ChatNewsessionIn,
     current_user: dict = Depends(get_current_user),
-    db: AsyncSessionLocal = Depends(get_db)
+    db = Depends(get_db)
 ):
     user_id = current_user['user_id']
     savetitle = request_data.title[:200]
-    
-    # 移除了 async with db.begin()
+
     new_session = TurChatSessions(
         user_id=user_id,
         title=savetitle,
@@ -82,9 +77,9 @@ async def create_chat_session(
         me_smart_customer_service_version=config.ME_SMART_CUSTOMER_SERVICE_VERSION
     )
     db.add(new_session)
-    await db.commit() # 显式提交以持久化
-    await db.refresh(new_session) # 刷新以获取数据库生成的ID
-    
+    await db.commit()
+    await db.refresh(new_session)
+
     chat_session_id = new_session.id
 
     return schemas.ChatNewsessionOut(
@@ -160,7 +155,6 @@ async def stream_chat_generator(
         else:
             payload.update({"type": "text", "content": content_to_process})
 
-        # 修改点: 直接 yield JSON 字符串。EventSourceResponse 会自动将其包装在 "data: " 字段中。
         yield json.dumps(payload, ensure_ascii=False)
         await asyncio.sleep(0.01)
 
@@ -199,12 +193,12 @@ async def stream_chat_generator(
             async for item in process_buffer(buffer):
                 yield item
 
-        yield "[DONE]\n\n"
+        yield "[DONE]"
 
     except Exception as e:
         error_message = f"LLM请求失败: {e}"
         error_payload = {"session": str(chat_session_id), "id": message_id_counter + 1, "type": "error", "content": error_message}
-        
+
         # 修改点: 直接 yield 错误的 JSON 字符串
         yield json.dumps(error_payload, ensure_ascii=False)
         # 修改点: 直接 yield '[DONE]' 字符串
