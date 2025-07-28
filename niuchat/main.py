@@ -139,6 +139,8 @@ class WschatNamespace(socketio.AsyncNamespace):
                     query_stmt = insert(TurChatSessions).values(
                         user_id = userid,
                         title = savetitle,
+                        llm_model_name = config.LLM_MODEL_NAME,
+                        me_smart_customer_service_version = config.ME_SMART_CUSTOMER_SERVICE_VERSION
                     )
 
                     data = await db.execute(query_stmt)
@@ -148,7 +150,11 @@ class WschatNamespace(socketio.AsyncNamespace):
                     await self.emit("create_session", schemas.ChatNewsessionOut(
                         code=200,
                         message="success",
-                        data=schemas.ChatNewsession(chat_session_id=chatSessionId)
+                        data=schemas.ChatNewsession(
+                            chat_session_id=chatSessionId,
+                            llm_model_name=config.LLM_MODEL_NAME,
+                            me_smart_customer_service_version=config.ME_SMART_CUSTOMER_SERVICE_VERSION
+                        )
                     ).model_dump_json(), to=sid)
                 except Exception:
                     await self.emit("error", {"type": "create_session", "code": 400, "message": "创建会话消息失败"})

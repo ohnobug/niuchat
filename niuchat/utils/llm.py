@@ -43,7 +43,8 @@ async def llmchat(messages: List[Message]) -> AsyncGenerator[str, None]:
     stream = await client.chat.completions.create(
         model=config.LLM_MODEL_NAME,
         stream=True,
-        messages=messages
+        messages=messages,
+        temperature=0.3
     )
 
     async for event in stream:

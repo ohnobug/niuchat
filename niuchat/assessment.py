@@ -51,13 +51,15 @@ async def main():
         standard_answer = row.answer
         generated_answer = row.llm_result
         
+        
         # 调用异步函数来计算分数
         score = await calculate_async_similarity(standard_answer, generated_answer)
 
         # # # 打印详细信息，这些信息会在 promptfoo 的结果中显示
-        # print(f"标准答案: {standard_answer}")
-        # print(f"生成答案: {generated_answer}")
-        # print(f"计算出的语义相似度分数: {score:.4f}")
+        print(f"问题: {row.question} | ", end=" ")
+        print(f"标准答案: {standard_answer}", end=" ")
+        print(f"生成答案: {generated_answer}", end=" ")
+        print(f"计算出的语义相似度分数: {score:.4f}")
         return score
 
     tasks = [apply(row) for row in df.itertuples()]

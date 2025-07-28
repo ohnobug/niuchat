@@ -44,7 +44,9 @@ class TurChatSessions(Base):
     __tablename__ = "tur_chat_sessions"
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, index=True)
-    title = Column(String(255), nullable=False, index=True)
+    title = Column(String(255), nullable=False, index=False)
+    llm_model_name = Column(String(255), nullable=False, index=False)
+    me_smart_customer_service_version = Column(String(20), nullable=False, index=False)
     created_at = Column(TIMESTAMP, server_default=func.now())
 
 

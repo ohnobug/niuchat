@@ -50,14 +50,47 @@ services:
       - EMBEDDING_BASE_URL=http://192.168.0.5:11434/v1
       - EMBEDDING_MODEL_NAME=bge-m3
       - RABBITMQ_URL=amqp://user:bitnami@rabbitmq:5672/
+      - ME_SMART_CUSTOMER_SERVICE_VERSION=1.0
     restart: unless-stopped
     volumes:
       - ./milvus_db:/app/milvus_db
     ports:
       - "9000:9000"
-    # depends_on:
-    #   - mariadb
-    #   - rabbitmq
+    depends_on:
+      - mariadb
+      - rabbitmq
+    networks:
+      - niuchat_network
+
+  # 对话sse服务
+  niuchat_sse:
+    build:
+      context: ./niuchat
+      dockerfile: Dockerfile_sse
+    environment:
+      - DB_USER=root
+      - DB_PASSWORD=Goodnewchat
+      - DB_PORT=3306
+      - DB_HOST=mariadb
+      - DB_NAME=niuchat
+      # - LLM_API_KEY=sk-jwcnjpikvwlvkqaodhmtqallesmqoxakvfpigazqdjfqkyxo
+      # - LLM_BASE_URL=https://api.siliconflow.cn/v1
+      # - LLM_MODEL_NAME=Qwen/Qwen3-32B
+      - LLM_API_KEY=ollama
+      - LLM_BASE_URL=http://192.168.0.5:11434/v1
+      - LLM_MODEL_NAME=qwen2.5
+      - EMBEDDING_API_KEY=ollama
+      - EMBEDDING_BASE_URL=http://192.168.0.5:11434/v1
+      - EMBEDDING_MODEL_NAME=bge-m3
+      - RABBITMQ_URL=amqp://user:bitnami@rabbitmq:5672/
+      - ME_SMART_CUSTOMER_SERVICE_VERSION=1.0
+    restart: unless-stopped
+    volumes:
+      - ./milvus_db:/app/milvus_db
+    ports:
+      - "9001:9001"
+    depends_on:
+      - mariadb
     networks:
       - niuchat_network
 

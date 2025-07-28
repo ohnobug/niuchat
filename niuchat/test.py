@@ -84,7 +84,7 @@ async def test_llm():
     with open("./真实用户问答.csv", 'rb') as f:
         df = pd.read_csv(f, index_col=0)
 
-    df = df.iloc[:10]
+    df = df.iloc[:10000]
     semaphore = asyncio.Semaphore(100)
 
     async def worker(task_name, text):

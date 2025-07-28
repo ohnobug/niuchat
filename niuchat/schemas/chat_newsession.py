@@ -6,6 +6,8 @@ class ChatNewsessionIn(BaseModel):
 
 class ChatNewsession(BaseModel):
     chat_session_id: int
+    llm_model_name: str
+    me_smart_customer_service_version: str
 
 class ChatNewsessionOut(BaseResponse):
     data: ChatNewsession = Field(...)
