@@ -72,7 +72,7 @@ class WschatNamespace(socketio.AsyncNamespace):
             userinfo = get_userInfo_from_token(bearer)
             async with self.session(sid) as session:
                 session['user_id'] = userinfo['user_id']
-                session['username'] = userinfo['username']
+                session['username'] = userinfo['user_id']
                 
                 async with AsyncSessionLocal() as db:
                     try:
@@ -84,7 +84,7 @@ class WschatNamespace(socketio.AsyncNamespace):
                             # passwordh = password_hash("")
                             insert_stmt = insert(TurUsers).values(
                                 id=userinfo['user_id'],
-                                phone_number=userinfo['username'],
+                                phone_number=userinfo['user_id'],
                                 password_hash='no password'
                             )
 

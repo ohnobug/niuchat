@@ -53,7 +53,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
         async with AsyncSessionLocal() as db:
             if not await db.get(TurUsers, userinfo['user_id']):
                 # 不需要显式的 begin()，会话上下文管理器会处理事务
-                db.add(TurUsers(id=userinfo['user_id'], phone_number=userinfo['username'], password_hash='no password'))
+                db.add(TurUsers(id=userinfo['user_id'], phone_number=userinfo['user_id'], password_hash='no password'))
                 await db.commit()
         return userinfo
     except Exception as e:
@@ -231,6 +231,6 @@ async def send_message_and_stream(
     generator = stream_chat_generator(chat_session_id, request_data, user_id, db)
     return EventSourceResponse(generator, media_type="text/event-stream")
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
