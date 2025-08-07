@@ -1,5 +1,12 @@
 __import__('pysqlite3')
+import glob
+import logging
+from logging.handlers import RotatingFileHandler
+import os
+import re
 import sys
+
+from fastapi.responses import JSONResponse
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
 import io
@@ -17,13 +24,36 @@ from utils.chromadb_helpers import init_chromadb
 from utils.util import get_knowledge_prompt, get_userInfo_from_token, get_language_name
 from utils.llm import Message, RoleEnum, llmchat
 
-from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi import FastAPI, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordBearer
 from sse_starlette.sse import EventSourceResponse
 
 print(f"TIHS IS LLM_API_KEY: {config.LLM_API_KEY}")
 print(f"TIHS IS LLM_BASE_URL: {config.LLM_BASE_URL}")
 print(f"TIHS IS LLM_MODEL_NAME: {config.LLM_MODEL_NAME}")
+
+
+# --- 1. 日志和配置 ---
+logger = logging.getLogger('my_app_logger')
+logger.setLevel(logging.INFO)
+
+# 2. 创建一个 RotatingFileHandler
+#    - filename: 日志文件名
+#    - maxBytes: 单个文件的最大字节数 (这里是 1MB)
+#    - backupCount: 保留的备份文件数量
+LOG_BASE_NAME = 'app.log'
+LOG_DIRECTORY = "."
+handler = RotatingFileHandler(
+    os.path.join(LOG_DIRECTORY, LOG_BASE_NAME), 
+    maxBytes=1024*1024,
+    backupCount=5
+)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+logger.addHandler(handler)
+
 
 if config.USE_CHROMADB:
     with open("./newqa.xlsx", 'rb') as f:
@@ -33,12 +63,12 @@ if config.USE_CHROMADB:
 # --- Lifespan 管理器 (保持不变) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("ASGI startup: Initializing resources...")
+    logger.info("ASGI startup: Initializing resources...")
     yield
-    print("ASGI shutdown: Disposing database engine...")
+    logger.info("ASGI shutdown: Disposing database engine...")
     if database.engine:
         await database.engine.dispose()
-        print("ASGI shutdown: Database engine disposed successfully.")
+        logger.info("ASGI shutdown: Database engine disposed successfully.")
 
 app = FastAPI(lifespan=lifespan)
 
@@ -111,6 +141,9 @@ async def stream_chat_generator(
     chat_context = []
     detected_language = get_language_name(user_question)
     system_prompt = config.LLM_SYSTEM_PROMPT.format(language=detected_language)
+    
+    logger.info(system_prompt)
+
     chat_context.append(Message(role=RoleEnum.system, content=system_prompt))
 
     for chat in history:
@@ -201,6 +234,7 @@ async def stream_chat_generator(
     except Exception as e:
         error_message = f"LLM请求失败: {e}"
         error_payload = {"session": str(chat_session_id), "id": message_id_counter + 1, "type": "error", "content": error_message}
+        logger.error(error_payload)
 
         # 修改点: 直接 yield 错误的 JSON 字符串
         yield json.dumps(error_payload, ensure_ascii=False)
@@ -233,6 +267,56 @@ async def send_message_and_stream(
 
     generator = stream_chat_generator(chat_session_id, request_data, user_id, db)
     return EventSourceResponse(generator, media_type="text/event-stream")
+
+
+@app.get("/logs", response_class=JSONResponse)
+def list_logs():
+    """
+    列出所有可用的日志文件。
+    FastAPI 会自动将 Python 列表转换为 JSON 响应。
+    """
+    try:
+        log_files = [os.path.basename(f) for f in glob.glob(os.path.join(LOG_DIRECTORY, f'{LOG_BASE_NAME}*'))]
+        # 对文件进行排序，app.log 在最前面
+        log_files.sort(key=lambda x: int(x.split('.')[-1]) if x.split('.')[-1].isdigit() else -1)
+        return log_files
+    except Exception as e:
+        # FastAPI 中，推荐使用 HTTPException 来处理错误
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/logs/latest", response_class=Response)
+def get_latest_log():
+    """
+    获取最新日志文件的内容 (即 app.log)，作为纯文本返回。
+    """
+    # 直接复用下面的函数
+    return get_log_by_filename(LOG_BASE_NAME)
+
+
+@app.get("/logs/{filename}", response_class=Response)
+def get_log_by_filename(filename: str):
+    """
+    获取指定日志文件的内容，并作为纯文本字符串返回。
+    """
+    # 安全性检查，防止路径遍历攻击
+    if not re.match(r'^app\.log(\.\d+)?$', filename):
+        raise HTTPException(status_code=400, detail="不合法的文件名。")
+
+    filepath = os.path.join(LOG_DIRECTORY, filename)
+
+    if not os.path.exists(filepath):
+        raise HTTPException(status_code=404, detail=f"文件 {filename} 未找到。")
+
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # 直接使用 FastAPI 的 Response 对象，并指定 media_type
+        return Response(content=content, media_type="text/plain")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取文件时发生错误: {str(e)}")
+
 
 # if __name__ == "__main__":
 #     import uvicorn
