@@ -145,10 +145,13 @@ async def stream_chat_generator(
         message_id_counter += 1
         payload = {"session": str(chat_session_id), "id": message_id_counter}
 
+        # 联系人工客服按钮
         if content_to_process.startswith("[BUTTON]"):
-            payload.update({"type": "button", "title": content_to_process.replace("[BUTTON]", "").strip(), "url": "action_placeholder"})
+            payload.update({"type": "button", "title": content_to_process.replace("[BUTTON]", "").strip(), "url": "/mecs/person/service"})
+        # 相关问题
         elif content_to_process.startswith("[RELATED]"):
             payload.update({"type": "related", "title": content_to_process.replace("[RELATED]", "").strip(), "url": "related_placeholder"})
+        # 参考链接
         elif content_to_process.startswith("[REFERENCE]"):
             parts = [p.strip() for p in content_to_process.replace("[REFERENCE]", "").strip().split('|')]
             payload.update({"type": "reference", "title": parts[0] if parts else "参考", "url": parts[1] if len(parts) > 1 else "url_placeholder"})
@@ -223,7 +226,7 @@ async def send_message_and_stream(
 ):
     user_id = current_user['user_id']
     chat_session_id = request_data.chat_session_id
-    
+
     session_obj = await db.get(TurChatSessions, chat_session_id)
     if not session_obj or session_obj.user_id != user_id:
         raise HTTPException(status_code=403, detail="无权访问此会话")
