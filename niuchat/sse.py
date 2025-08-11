@@ -1,17 +1,16 @@
+import sys
+
 __import__('pysqlite3')
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
 import glob
 import logging
 from logging.handlers import RotatingFileHandler
 import os
 import re
-import sys
-
 from fastapi.responses import JSONResponse
-sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-
 import io
 import json
-import pandas as pd
 import config
 import database
 import schemas
@@ -20,9 +19,9 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 from sqlalchemy import select, update
 from database import AsyncSessionLocal, TurChatHistory, TurChatSessions, TurUsers, get_db
-from utils.chromadb_helpers import init_chromadb
-from utils.util import get_knowledge_prompt, get_userInfo_from_token, get_language_name
+from utils.util import get_userInfo_from_token
 from utils.llm import Message, RoleEnum, llmchat
+from utils.chromadb_helpers import chroma_format_knowledge
 
 from fastapi import FastAPI, Depends, HTTPException, Response, status
 from fastapi.security import OAuth2PasswordBearer
@@ -43,22 +42,22 @@ logger.setLevel(logging.INFO)
 #    - backupCount: 保留的备份文件数量
 LOG_BASE_NAME = 'app.log'
 LOG_DIRECTORY = "."
+
 handler = RotatingFileHandler(
     os.path.join(LOG_DIRECTORY, LOG_BASE_NAME), 
     maxBytes=1024*1024,
     backupCount=5
 )
-
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 
+
+console_handler = logging.StreamHandler()
+console_formatter = logging.Formatter('%(levelname)s: %(message)s')
+console_handler.setFormatter(console_formatter)
+
 logger.addHandler(handler)
-
-
-if config.USE_CHROMADB:
-    with open("./newqa.xlsx", 'rb') as f:
-        df = pd.read_excel(f, index_col=0)
-        init_chromadb(datasets=df)
+logger.addHandler(console_handler)
 
 # --- Lifespan 管理器 (保持不变) ---
 @asynccontextmanager
@@ -121,6 +120,74 @@ async def create_chat_session(
         )
     )
 
+async def knowledge_insert(chat_context: list, knowledge_list:list = []):
+    """
+    少样本提示
+    """
+    for item in knowledge_list:
+        knowledge_list = await chroma_format_knowledge(question=item['question'], n_results=config.CHROMADB_RELATED_MAXIMUM_QUERY_RESULT, threshold=config.CHROMADB_RELATED_QUERY_THRESHOLD)
+
+        qa = knowledge_list[1:4]
+        question = f"\n".join(list(f"[RELATED] {item['question']}" for item in qa))
+
+        chat_context.append(Message(role=RoleEnum.user, content=f"【参考资料】{item['answer']}\n\n【用户问题】{item['question']}"))
+        chat_context.append(Message(role=RoleEnum.assistant, content=f"{item['answer']} {question}"))
+
+        # # 用户直接要求
+        # chat_context.append(Message(role=RoleEnum.user, content="人工客服"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="请点击下方按钮，联系人工客服。\n[BUTTON] 联系人工客服"))
+
+        # chat_context.append(Message(role=RoleEnum.user, content="转人工"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="好的，正在为您转接，请稍等。\n[BUTTON] 联系人工客服"))
+
+        # # 用户表达不满或机器人无法解决问题时，主动引导至人工
+        # chat_context.append(Message(role=RoleEnum.user, content="你这个机器人太笨了，解决不了我的问题！"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="非常抱歉给您带来了不好的体验。为了更好地解决您的问题，我立即为您转接人工客服。\n[BUTTON] 联系人工客服"))
+
+        # # 用户描述了一个极其复杂且高风险的场景，机器人应主动转交
+        # chat_context.append(Message(role=RoleEnum.user, content="我的账户好像被盗了，绑定的手机也换了，怎么办啊？"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="您遇到的情况比较紧急，涉及到账户安全，我建议您立即联系人工客服进行身份核验和处理。\n[BUTTON] 联系人工客服"))
+
+        # # 讲笑话 (您的优秀范例)
+        # chat_context.append(Message(role=RoleEnum.user, content="可以讲个笑话吗？"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="您的要求我无法满足，我是ME Pass钱包的智能客服助手，如果您有任何关于ME Pass钱包的问题，我保证会给您一个最满意的答复。请问需要什么帮助吗？"))
+
+        # # 问候与日常聊天
+        # chat_context.append(Message(role=RoleEnum.user, content="你好呀"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="您好！我是您的ME Pass钱包专属客服，请问有什么可以帮您？"))
+
+        # chat_context.append(Message(role=RoleEnum.user, content="你吃饭了吗？"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="谢谢您的关心！我是一个智能程序，不需要吃饭，随时都可以为您服务。请问您在使用ME Pass钱包时遇到了什么问题吗？"))
+
+        # # 探寻个人身份
+        # chat_context.append(Message(role=RoleEnum.user, content="你是谁？"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="我是ME Pass钱包的智能客服助手，专门为您解答关于产品使用和账户安全的问题。"))
+
+        # # 提出超出范围的任务
+        # chat_context.append(Message(role=RoleEnum.user, content="帮我写一首关于夏天的诗"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="这个想法真不错！可惜我的知识库主要集中在ME Pass钱包的服务上，暂时还没有“解锁”写诗的技能呢。如果您有关于支付或账户的问题，我非常乐意为您解答。"))
+
+        # # 处理辱骂或负面情绪
+        # chat_context.append(Message(role=RoleEnum.user, content="垃圾机器人"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="很抱歉我的回答没能让您满意。为了更好地帮助您，您可以换个方式描述您的问题，或者直接点击下方按钮联系人工客服。\n[BUTTON] 联系人工客服"))
+
+        # # 产品比较
+        # chat_context.append(Message(role=RoleEnum.user, content="ME Pass钱包和XX钱包哪个更好用？"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="很高兴您对ME Pass钱包感兴趣！每个钱包应用都有自己的设计特色。我可以为您详细介绍ME Pass在安全性和便捷支付方面的独特功能，以帮助您做出自己的判断。您想先了解哪一方面呢？"))
+
+        # # 寻求建议
+        # chat_context.append(Message(role=RoleEnum.user, content="我应该把所有钱都放进ME Pass钱包吗？"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="作为您的智能客服，我无法为您提供理财建议。但我可以向您详细介绍ME Pass钱包的资金安全保障措施，比如多重加密和账户安全险，来帮助您评估。您需要了解这方面的信息吗？"))
+
+        # # 用户只输入单个关键词
+        # chat_context.append(Message(role=RoleEnum.user, content="密码"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="您好，关于密码，您是想了解“忘记登录密码”、“修改支付密码”还是“设置手势密码”呢？请告诉我具体是哪一种，我可以为您提供详细指引。"))
+
+        # # 用户问题不清晰
+        # chat_context.append(Message(role=RoleEnum.user, content="我的钱怎么没了"))
+        # chat_context.append(Message(role=RoleEnum.assistant, content="请您先不要着急。为了帮您查询，您是指“一笔交易的金额不对”、“余额显示异常”还是想查询“最近的交易记录”呢？"))
+            
+
 # --- 流式生成器 ---
 async def stream_chat_generator(
     chat_session_id: int,
@@ -128,128 +195,148 @@ async def stream_chat_generator(
     user_id: int,
     db
 ) -> AsyncGenerator[str, None]:
-    user_question = request_data.text.strip()
+    try:
+        user_question = request_data.text.strip()
 
-    # 1. 准备上下文 (逻辑不变)
-    query_stmt = select(TurChatHistory).where(
-        TurChatHistory.chat_session_id == chat_session_id,
-        TurChatHistory.user_id == user_id
-    ).order_by(TurChatHistory.id.asc())
-    result = await db.execute(query_stmt)
-    history = result.scalars().all()
+        # 1. 准备上下文 (逻辑不变)
+        query_stmt = select(TurChatHistory).where(
+            TurChatHistory.chat_session_id == chat_session_id,
+            TurChatHistory.user_id == user_id
+        ).order_by(TurChatHistory.id.asc())
+        result = await db.execute(query_stmt)
+        history = result.scalars().all()
 
-    chat_context = []
-    detected_language = get_language_name(user_question)
-    system_prompt = config.LLM_SYSTEM_PROMPT.format(language=detected_language)
-    
-    logger.info(system_prompt)
+        chat_context = []
+        # detected_language = get_language_name(user_question)
+        system_prompt = config.LLM_SYSTEM_PROMPT
+        
+        # logger.info("-" * 50)
+        # logger.info(system_prompt)
+        # logger.info("-" * 50)
+        
+        # 系统提示词
+        chat_context.append(Message(role=RoleEnum.system, content=system_prompt))
 
-    chat_context.append(Message(role=RoleEnum.system, content=system_prompt))
+        # 从知识库中查询出来的知识
+        knowledge_list = await chroma_format_knowledge(question=user_question, n_results=config.CHROMADB_MAXIMUM_QUERY_RESULT, threshold=config.CHROMADB_QUERY_THRESHOLD)
 
-    for chat in history:
-        chat_context.append(Message(role=RoleEnum.user if chat.sender == 'user' else RoleEnum.assistant, content=chat.text))
+        await knowledge_insert(chat_context, knowledge_list)
 
-    final_prompt = await get_knowledge_prompt(user_question)
-    chat_context.append(Message(role=RoleEnum.user, content=final_prompt))
+        for chat in history:
+            chat_context.append(Message(role=RoleEnum.user if chat.sender == 'user' else RoleEnum.assistant, content=chat.text))
 
-    # 2. 保存用户消息和AI消息占位符 (逻辑不变)
-    user_message = TurChatHistory(user_id=user_id, chat_session_id=chat_session_id, sender="user", text=user_question)
-    ai_message_stub = TurChatHistory(user_id=user_id, chat_session_id=chat_session_id, sender="ai", text="")
-    db.add(user_message)
-    db.add(ai_message_stub)
-    await db.flush()
-    ai_message_id = ai_message_stub.id
+        # 用户提出的问题
+        chat_context.append(Message(role=RoleEnum.user, content=user_question))
 
-    # 3. 实时流式处理和状态驱动解析
-    buffer = ""
-    full_response_buffer = io.StringIO()
-    message_id_counter = 0
+        logger.info("-" * 80)
+        logger.info(chat_context)
+        logger.info("-" * 80)
 
-    # 辅助函数，用于处理和发送缓冲区内容
-    async def process_buffer(current_buffer: str):        
-        nonlocal message_id_counter
+        # 2. 保存用户消息和AI消息占位符 (逻辑不变)
+        user_message = TurChatHistory(user_id=user_id, chat_session_id=chat_session_id, sender="user", text=user_question)
+        ai_message_stub = TurChatHistory(user_id=user_id, chat_session_id=chat_session_id, sender="ai", text="")
+        db.add(user_message)
+        db.add(ai_message_stub)
+        await db.flush()
+        ai_message_id = ai_message_stub.id
 
-        content_to_process = current_buffer.strip()
-        # print(f"-----------{content_to_process}-----------")
+        # 3. 实时流式处理和状态驱动解析
+        buffer = ""
+        full_response_buffer = io.StringIO()
+        message_id_counter = 0
 
-        if not content_to_process:
+        # 辅助函数，用于处理和发送缓冲区内容
+        async def process_buffer(current_buffer: str):        
+            nonlocal message_id_counter
+
+            content_to_process = current_buffer.strip()
+            # print(f"-----------{content_to_process}-----------")
+
+            if not content_to_process:
+                return
+
+            message_id_counter += 1
+            payload = {"session": str(chat_session_id), "id": message_id_counter}
+
+            # 联系人工客服按钮
+            if content_to_process.startswith("[BUTTON]"):
+                payload.update({"type": "button", "title": content_to_process.replace("[BUTTON]", "").strip(), "url": "/mecs/person/service"})
+            # 相关问题
+            elif content_to_process.startswith("[RELATED]"):
+                payload.update({"type": "related", "title": content_to_process.replace("[RELATED]", "").strip(), "url": "related_placeholder"})
+            # 参考链接
+            elif content_to_process.startswith("[REFERENCE]"):
+                parts = [p.strip() for p in content_to_process.replace("[REFERENCE]", "").strip().split('|')]
+                payload.update({"type": "reference", "title": parts[0] if parts else "参考", "url": parts[1] if len(parts) > 1 else "url_placeholder"})
+            else:
+                payload.update({"type": "text", "content": content_to_process})
+
+            yield json.dumps(payload, ensure_ascii=False)
+            await asyncio.sleep(0.01)
+
+        logger.info(chat_context)
+
+        try:
+            async for token in llmchat(chat_context):
+                full_response_buffer.write(token)
+
+                # print(token)
+
+                # 如果是[开头就开始累计
+                if token.strip().startswith('['):
+                    if len(buffer) > 0:
+                        async for item in process_buffer(buffer):
+                            yield item
+                        buffer = ""
+                    buffer = token.strip()
+                    continue
+
+                # 一直累计到换行
+                if len(buffer) > 0:
+                    if token == "\n":
+                        async for item in process_buffer(buffer):
+                            yield item
+                        buffer = ""
+                    else:
+                        buffer += token
+
+                    continue
+
+                # 正常token输出
+                async for item in process_buffer(token):
+                    yield item
+
+            # 最后一个buffer的处理
+            if len(buffer) > 0:
+                async for item in process_buffer(buffer):
+                    yield item
+
+            yield "[DONE]"
+
+        except Exception as e:
+            error_message = f"LLM请求失败: {e}"
+            error_payload = {"session": str(chat_session_id), "id": message_id_counter + 1, "type": "error", "content": error_message}
+            logger.error(error_payload)
+
+            # 修改点: 直接 yield 错误的 JSON 字符串
+            yield json.dumps(error_payload, ensure_ascii=False)
+            # 修改点: 直接 yield '[DONE]' 字符串
+            yield "[DONE]"
+
+            await db.execute(update(TurChatHistory).values(text=error_message).where(TurChatHistory.id == ai_message_id))
+            await db.commit()
             return
 
-        message_id_counter += 1
-        payload = {"session": str(chat_session_id), "id": message_id_counter}
 
-        # 联系人工客服按钮
-        if content_to_process.startswith("[BUTTON]"):
-            payload.update({"type": "button", "title": content_to_process.replace("[BUTTON]", "").strip(), "url": "/mecs/person/service"})
-        # 相关问题
-        elif content_to_process.startswith("[RELATED]"):
-            payload.update({"type": "related", "title": content_to_process.replace("[RELATED]", "").strip(), "url": "related_placeholder"})
-        # 参考链接
-        elif content_to_process.startswith("[REFERENCE]"):
-            parts = [p.strip() for p in content_to_process.replace("[REFERENCE]", "").strip().split('|')]
-            payload.update({"type": "reference", "title": parts[0] if parts else "参考", "url": parts[1] if len(parts) > 1 else "url_placeholder"})
-        else:
-            payload.update({"type": "text", "content": content_to_process})
-
-        yield json.dumps(payload, ensure_ascii=False)
-        await asyncio.sleep(0.01)
-
-    try:
-        async for token in llmchat(chat_context):
-            full_response_buffer.write(token)
-
-            # print(token)
-
-            # 如果是[开头就开始累计
-            if token.strip().startswith('['):
-                if len(buffer) > 0:
-                    async for item in process_buffer(buffer):
-                        yield item
-                    buffer = ""
-                buffer = token.strip()
-                continue
-
-            # 一直累计到换行
-            if len(buffer) > 0:
-                if token == "\n":
-                    async for item in process_buffer(buffer):
-                        yield item
-                    buffer = ""
-                else:
-                    buffer += token
-
-                continue
-
-            # 正常token输出
-            async for item in process_buffer(token):
-                yield item
-
-        # 最后一个buffer的处理
-        if len(buffer) > 0:
-            async for item in process_buffer(buffer):
-                yield item
-
-        yield "[DONE]"
-
-    except Exception as e:
-        error_message = f"LLM请求失败: {e}"
-        error_payload = {"session": str(chat_session_id), "id": message_id_counter + 1, "type": "error", "content": error_message}
-        logger.error(error_payload)
-
-        # 修改点: 直接 yield 错误的 JSON 字符串
-        yield json.dumps(error_payload, ensure_ascii=False)
-        # 修改点: 直接 yield '[DONE]' 字符串
-        yield "[DONE]"
-
-        await db.execute(update(TurChatHistory).values(text=error_message).where(TurChatHistory.id == ai_message_id))
+        # 4. 异步更新数据库中的完整AI响应 (逻辑不变)
+        full_response_text = full_response_buffer.getvalue()
+        await db.execute(update(TurChatHistory).values(text=full_response_text).where(TurChatHistory.id == ai_message_id))
         await db.commit()
-        return
-
-
-    # 4. 异步更新数据库中的完整AI响应 (逻辑不变)
-    full_response_text = full_response_buffer.getvalue()
-    await db.execute(update(TurChatHistory).values(text=full_response_text).where(TurChatHistory.id == ai_message_id))
-    await db.commit()
+        await db.close()
+    except Exception as e:
+        print(e)
+    finally:
+        await db.close()
 
 
 @app.post("/chat/stream")

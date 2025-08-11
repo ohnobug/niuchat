@@ -7,9 +7,9 @@ import io
 import time
 import pandas as pd
 import config
-from utils.chromadb_helpers import init_chromadb
 from utils.llm import Message, RoleEnum, get_embedding, llmchat
-from utils.util import get_knowledge_prompt, p, get_language_name
+from utils.util import get_language_name
+from utils.chromadb_helpers import chroma_format_knowledge
 
 # 得到上下文
 async def get_chat_context(userquestion):
@@ -105,4 +105,7 @@ async def test_llm():
     with open("result.json", "wb") as f:
         save.to_json(f, indent=4, force_ascii=False, orient="records")
 
-asyncio.run(test_llm())
+# asyncio.run(test_llm())
+
+
+print(asyncio.run(chroma_format_knowledge("什么是mepass？")))

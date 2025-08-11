@@ -10,14 +10,13 @@ from fastapi import HTTPException, Depends, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select, update
 from config import SECRET_KEY, ALGORITHM
-import config
 import database
 from database import TurUsers, TurVerifyCodes
 import random
 from fastapi import HTTPException
+import config
 import schemas
 from .llm import get_embedding
-from .chromadb_helpers import chroma_format_knowledge_for_prompt, chroma_retrieved_knowledge
 import pycountry
 from langdetect import detect, LangDetectException
 # from .milvus_helpers import milvus_format_knowledge_for_prompt, milvus_retrieved_knowledge
@@ -51,8 +50,6 @@ async def get_login_username(cookie: str = None):
         async with session.get('https://learn.turcar.net.cn/getusername.php?cookie=' + cookie) as response:            
             html = await response.text()
             return html
-
-
 
 
 def get_userInfo_from_token(bearer: str):
@@ -113,39 +110,6 @@ async def check_verify_code(db, phone_number: str, code: str, purpose: schemas.U
 
     await db.execute(update_stmt)
     await db.commit()
-
-
-async def get_knowledge_prompt(userquestion: str) -> str:
-    """
-    查询知识库，然后完整的系统提示词
-    """
-    # 获取嵌入
-    vectors = await get_embedding(userquestion)
-
-    if config.USE_CHROMADB:
-        search_results = chroma_retrieved_knowledge(vectors)
-        formatted_context = chroma_format_knowledge_for_prompt(search_results)
-    else:
-        raise
-    # else:
-    #     search_results = milvus_retrieved_knowledge(vectors)
-    #     formatted_context = milvus_format_knowledge_for_prompt(search_results)
-
-    # 提示词模板
-    final_prompt_template = """
-【参考资料】
-{context}
-
-【用户问题】
-{userquestion}
-    """
-
-    final_prompt = final_prompt_template.format(
-        context=formatted_context if formatted_context else "无",
-        userquestion=userquestion
-    )
-
-    return final_prompt
 
 
 def get_language_name(text: str, default_lang: str = 'English') -> str:
