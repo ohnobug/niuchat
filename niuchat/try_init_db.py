@@ -177,10 +177,25 @@ async def init_chromadb(datasets: pd.DataFrame):
             # 准备 ChromaDB 需要的各个部分
             ids_to_insert.append(current_id)
             documents_to_insert.append(question)
+            
+            urls = []
+            if item.url != "":
+                try:
+                    j = json.loads(item.url)
+                    urls = []
+                    for i in j:
+                        urls.append(f"[REFERENCE] [{i['title']}]({i['url']})")
+                except:
+                    urls = []
+
+            related = [f"[RELATED] {i}" for i in item.related.split("|") if i != ""]
+
             metadatas_to_insert.append({
-                "category": item.category,
+                # "category": item.category,
+                "original_question": question,
                 "answer": item.answer,
-                "original_question": question
+                "urls": "\n".join(urls),
+                "related": "\n".join(related)
             })
 
             # 计算向量
@@ -224,6 +239,8 @@ async def init_chromadb(datasets: pd.DataFrame):
                 documents=documents_to_insert
             )
     except Exception as e:
+        print(related)
+        print(item)
         print(f"ChromaDB操作期间发生错误: {e}")
         # 如果有必要，可以在这里处理异常
     finally:
@@ -235,6 +252,6 @@ async def init_chromadb(datasets: pd.DataFrame):
 if __name__ == "__main__":
     init_mariadb()
 
-    with open("./newqa.xlsx", 'rb') as f:
+    with open("./newqa_with_embeddings.xlsx", 'rb') as f:
         df = pd.read_excel(f, index_col=0)
         asyncio.run(init_chromadb(datasets=df))

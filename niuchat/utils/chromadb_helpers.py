@@ -1,3 +1,4 @@
+import json
 import chromadb
 import config
 from utils.llm import get_embedding
@@ -58,13 +59,18 @@ async def chroma_format_knowledge(question: str, n_results=50, threshold: float 
         # 从 metadata 中安全地提取信息
         question = metadata.get('original_question', 'N/A')
         answer = metadata.get('answer', 'N/A')
-        category = metadata.get('category', 'N/A')
+        urls = metadata.get('urls', 'N/A')
+        related = metadata.get('related', 'N/A')
+        # category = metadata.get('category', 'N/A')
         
         # 构建单个知识点的格式化字符串
         # part = f"参考资料[{knowledge_counter}]:\n- 问题: {question}\n- 回答: {answer}\n"
         part = {
             "question": question,
-            "answer": answer
+            "answer": answer,
+            "urls": urls,
+            "related": related,
+            "distance": dist
         }
         context_parts.append(part)
     return context_parts

@@ -125,68 +125,15 @@ async def knowledge_insert(chat_context: list, knowledge_list:list = []):
     少样本提示
     """
     for item in knowledge_list:
-        knowledge_list = await chroma_format_knowledge(question=item['question'], n_results=config.CHROMADB_RELATED_MAXIMUM_QUERY_RESULT, threshold=config.CHROMADB_RELATED_QUERY_THRESHOLD)
-
-        qa = knowledge_list[1:4]
-        question = f"\n".join(list(f"[RELATED] {item['question']}" for item in qa))
-
+        question = item['related']
+        urls = item['urls']
+        
         chat_context.append(Message(role=RoleEnum.user, content=f"【参考资料】{item['answer']}\n\n【用户问题】{item['question']}"))
-        chat_context.append(Message(role=RoleEnum.assistant, content=f"{item['answer']} {question}"))
+        chat_context.append(Message(role=RoleEnum.assistant, content=f"{item['answer']}\n{urls}\n{question}"))
 
-        # # 用户直接要求
-        # chat_context.append(Message(role=RoleEnum.user, content="人工客服"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="请点击下方按钮，联系人工客服。\n[BUTTON] 联系人工客服"))
+    chat_context.append(Message(role=RoleEnum.user, content=f"可以讲个笑话吗？"))
+    chat_context.append(Message(role=RoleEnum.assistant, content=f"对不起，不可以哦。"))
 
-        # chat_context.append(Message(role=RoleEnum.user, content="转人工"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="好的，正在为您转接，请稍等。\n[BUTTON] 联系人工客服"))
-
-        # # 用户表达不满或机器人无法解决问题时，主动引导至人工
-        # chat_context.append(Message(role=RoleEnum.user, content="你这个机器人太笨了，解决不了我的问题！"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="非常抱歉给您带来了不好的体验。为了更好地解决您的问题，我立即为您转接人工客服。\n[BUTTON] 联系人工客服"))
-
-        # # 用户描述了一个极其复杂且高风险的场景，机器人应主动转交
-        # chat_context.append(Message(role=RoleEnum.user, content="我的账户好像被盗了，绑定的手机也换了，怎么办啊？"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="您遇到的情况比较紧急，涉及到账户安全，我建议您立即联系人工客服进行身份核验和处理。\n[BUTTON] 联系人工客服"))
-
-        # # 讲笑话 (您的优秀范例)
-        # chat_context.append(Message(role=RoleEnum.user, content="可以讲个笑话吗？"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="您的要求我无法满足，我是ME Pass钱包的智能客服助手，如果您有任何关于ME Pass钱包的问题，我保证会给您一个最满意的答复。请问需要什么帮助吗？"))
-
-        # # 问候与日常聊天
-        # chat_context.append(Message(role=RoleEnum.user, content="你好呀"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="您好！我是您的ME Pass钱包专属客服，请问有什么可以帮您？"))
-
-        # chat_context.append(Message(role=RoleEnum.user, content="你吃饭了吗？"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="谢谢您的关心！我是一个智能程序，不需要吃饭，随时都可以为您服务。请问您在使用ME Pass钱包时遇到了什么问题吗？"))
-
-        # # 探寻个人身份
-        # chat_context.append(Message(role=RoleEnum.user, content="你是谁？"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="我是ME Pass钱包的智能客服助手，专门为您解答关于产品使用和账户安全的问题。"))
-
-        # # 提出超出范围的任务
-        # chat_context.append(Message(role=RoleEnum.user, content="帮我写一首关于夏天的诗"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="这个想法真不错！可惜我的知识库主要集中在ME Pass钱包的服务上，暂时还没有“解锁”写诗的技能呢。如果您有关于支付或账户的问题，我非常乐意为您解答。"))
-
-        # # 处理辱骂或负面情绪
-        # chat_context.append(Message(role=RoleEnum.user, content="垃圾机器人"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="很抱歉我的回答没能让您满意。为了更好地帮助您，您可以换个方式描述您的问题，或者直接点击下方按钮联系人工客服。\n[BUTTON] 联系人工客服"))
-
-        # # 产品比较
-        # chat_context.append(Message(role=RoleEnum.user, content="ME Pass钱包和XX钱包哪个更好用？"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="很高兴您对ME Pass钱包感兴趣！每个钱包应用都有自己的设计特色。我可以为您详细介绍ME Pass在安全性和便捷支付方面的独特功能，以帮助您做出自己的判断。您想先了解哪一方面呢？"))
-
-        # # 寻求建议
-        # chat_context.append(Message(role=RoleEnum.user, content="我应该把所有钱都放进ME Pass钱包吗？"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="作为您的智能客服，我无法为您提供理财建议。但我可以向您详细介绍ME Pass钱包的资金安全保障措施，比如多重加密和账户安全险，来帮助您评估。您需要了解这方面的信息吗？"))
-
-        # # 用户只输入单个关键词
-        # chat_context.append(Message(role=RoleEnum.user, content="密码"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="您好，关于密码，您是想了解“忘记登录密码”、“修改支付密码”还是“设置手势密码”呢？请告诉我具体是哪一种，我可以为您提供详细指引。"))
-
-        # # 用户问题不清晰
-        # chat_context.append(Message(role=RoleEnum.user, content="我的钱怎么没了"))
-        # chat_context.append(Message(role=RoleEnum.assistant, content="请您先不要着急。为了帮您查询，您是指“一笔交易的金额不对”、“余额显示异常”还是想查询“最近的交易记录”呢？"))
-            
 
 # --- 流式生成器 ---
 async def stream_chat_generator(
@@ -263,11 +210,16 @@ async def stream_chat_generator(
                 payload.update({"type": "button", "title": content_to_process.replace("[BUTTON]", "").strip(), "url": "/mecs/person/service"})
             # 相关问题
             elif content_to_process.startswith("[RELATED]"):
-                payload.update({"type": "related", "title": content_to_process.replace("[RELATED]", "").strip(), "url": "related_placeholder"})
+                payload.update({"type": "related", "title": content_to_process.replace("[RELATED]", "").strip()})
             # 参考链接
             elif content_to_process.startswith("[REFERENCE]"):
-                parts = [p.strip() for p in content_to_process.replace("[REFERENCE]", "").strip().split('|')]
-                payload.update({"type": "reference", "title": parts[0] if parts else "参考", "url": parts[1] if len(parts) > 1 else "url_placeholder"})
+                print(content_to_process)
+                pattern = r'\[(.*?)\]\s+?\[(.*?)\]\((.*)'
+                match = re.search(pattern, content_to_process)
+                if match:
+                    token_text = match.group(2)
+                    url = match.group(3)
+                    payload.update({"type": "reference", "title": token_text, "url": url})
             else:
                 payload.update({"type": "text", "content": content_to_process})
 
@@ -278,28 +230,28 @@ async def stream_chat_generator(
 
         try:
             async for token in llmchat(chat_context):
+                
+                print(token)
+                
                 full_response_buffer.write(token)
-
-                # print(token)
 
                 # 如果是[开头就开始累计
                 if token.strip().startswith('['):
-                    if len(buffer) > 0:
-                        async for item in process_buffer(buffer):
-                            yield item
-                        buffer = ""
-                    buffer = token.strip()
+                    # if len(buffer) > 0:
+                    #     async for item in process_buffer(buffer):
+                    #         yield item
+                    #     buffer = ""
+                    buffer += token
                     continue
 
                 # 一直累计到换行
                 if len(buffer) > 0:
-                    if token == "\n":
+                    if "\n" in token:
                         async for item in process_buffer(buffer):
                             yield item
                         buffer = ""
                     else:
                         buffer += token
-
                     continue
 
                 # 正常token输出
@@ -370,6 +322,7 @@ def list_logs():
     except Exception as e:
         # FastAPI 中，推荐使用 HTTPException 来处理错误
         raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/logs/latest", response_class=Response)
 def get_latest_log():
