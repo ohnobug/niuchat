@@ -1,7 +1,9 @@
 import sys
+
 __import__('pysqlite3')
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
-import sqlite3
+from pymysql import OperationalError
+import sqlalchemy
 import json
 import config
 import pandas as pd
@@ -11,117 +13,110 @@ import asyncio
 
 # 初始化mariadb
 def init_mariadb():
-    import sqlalchemy
-    from sqlalchemy.exc import OperationalError
-    from sqlalchemy.engine.url import make_url
-    from sqlalchemy import text
-
+    """
+    主函数，用于初始化数据库和表。
+    """
     def database_exists(url: str) -> bool:
-        """
-        更简洁地检查给定的 MariaDB/MySQL 数据库是否存在。
-        """
+        """检查给定的 MariaDB/MySQL 数据库是否存在。"""
         try:
             engine = sqlalchemy.create_engine(url)
             with engine.connect():
-                # 连接成功意味着数据库存在
-                pass
-            return True
+                return True
         except OperationalError as e:
-            # 错误码 1049 表示 "Unknown database"
-            if e.orig and e.orig.args[0] == 1049:
+            if e.orig and e.orig.args[0] == 1049: # Unknown database
                 return False
-            # 其他错误（如密码错误）则重新抛出
             raise
 
-    def database_create_tables(url: str):
-        print("Executing SQL from file: ./new_version_tur.sql")
 
-        # 1. 读取整个 SQL 文件
-        with open('./new_version_tur.sql', 'r', encoding='utf-8') as f:
-            # 使用 split(';') 来分割语句
-            sql_commands = f.read().split(';')
-
-        engine = sqlalchemy.create_engine(url)
-        with engine.connect() as connection:
-            # 2. 循环执行每一条分割后的 SQL 命令
-            for command in sql_commands:
-                # 过滤掉注释和分割后产生的空字符串
-                if command.strip() and not command.strip().startswith('--'):
-                    try:
-                        connection.execute(text(command))
-                    except Exception as e:
-                        print(f"Error executing command: {command.strip()}")
-                        print(f"Error: {e}")
-                        # 如果你希望遇到错误就停止，可以在这里 raise e
-            
-            # SQLAlchemy 2.0+ 默认是 "commit as you go"，
-            # 但如果你的事务块需要显式提交，可以保留这行
-            connection.commit() 
-        print("SQL script executed successfully.")
-
-
-    def create_database_if_not_exists(url: str):
-        """
-        检查数据库是否存在，如果不存在，则创建它。
-
-        :param url: 目标数据库的完整连接字符串。
-                    例如: "mysql+pymysql://user:pass@host/new_db"
-        """
-        # 首先，使用我们的辅助函数进行检查
+    def create_database(url: str):
+        """如果数据库不存在，则创建它。"""
         if database_exists(url):
-            print(f"Database at '{url}' already exists.")
+            print(f"数据库 '{sqlalchemy.make_url(url).database}' 已存在，跳过创建。")
             return
 
-        print(f"Database at '{url}' not found. Proceeding to create it...")
-
-        # 从原始 URL 中解析出数据库名和其他组件
-        parsed_url = make_url(url)
+        print(f"数据库 '{sqlalchemy.make_url(url).database}' 不存在，开始创建...")
+        parsed_url = sqlalchemy.make_url(url)
         db_name_to_create = parsed_url.database
-
-        # 创建一个连接到服务器本身的 URL (不指定数据库)
-        # 这对于执行 CREATE DATABASE 至关重要
         server_url = parsed_url.set(database="")
       
         try:
-            # 使用有权限创建数据库的用户连接到服务器
             engine = sqlalchemy.create_engine(server_url)
-
             with engine.connect() as connection:
-                # 使用 `CREATE DATABASE IF NOT EXISTS` 是最佳实践，可以防止竞争条件
-                # 使用反引号 ` ` 来安全地处理数据库名，以防它是保留关键字或包含特殊字符
-                # 注意: CREATE DATABASE 通常不能使用绑定参数，所以我们直接格式化
-                # 但因为我们是从 URL 中解析的，所以这里是安全的。
-                # 对于 DDL 语句，有些数据库驱动需要你提交事务
-                create_db_command = text(f"CREATE DATABASE IF NOT EXISTS `{db_name_to_create}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
+                create_db_command = sqlalchemy.text(f"CREATE DATABASE IF NOT EXISTS `{db_name_to_create}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
                 connection.execute(create_db_command)
+                # 在 SQLAlchemy 2.0+ 中，DDL 语句通常会自动提交
+            print(f"数据库 '{db_name_to_create}' 创建成功。")
+        except Exception as e:
+            print(f"创建数据库失败。请检查用户权限和连接信息。")
+            print(f"错误: {e}")
+            raise
 
-                # 创建表
-                database_create_tables(url=url)
+    
+    def execute_sql_file(url: str):
+        """读取并执行指定的 SQL 文件来创建表。"""
+        print("开始从文件 './new_version_tur.sql' 执行 SQL 脚本...")
+        try:
+            with open('./new_version_tur.sql', 'r', encoding='utf-8') as f:
+                sql_commands = f.read().split(';')
 
-            print(f"Database '{db_name_to_create}' created successfully.")
-
-        except OperationalError as e:
-            print(f"Could not create database. Please check user permissions and connection details.")
-            print(f"Error: {e}")
+            engine = sqlalchemy.create_engine(url)
+            with engine.connect() as connection:
+                # 开启事务，确保所有语句要么全部成功，要么全部失败
+                with connection.begin(): 
+                    for command in sql_commands:
+                        if command.strip() and not command.strip().startswith('--'):
+                            connection.execute(sqlalchemy.text(command))
+            print("SQL 脚本执行成功。")
+        except FileNotFoundError:
+            print("错误: SQL 文件 './new_version_tur.sql' 未找到。")
             raise
         except Exception as e:
-            print(f"An unexpected error occurred: {e}")
+            print(f"执行 SQL 脚本时发生错误: {e}")
+            raise
+
+    
+    # --- 核心逻辑：检查并初始化表 ---
+    def check_and_initialize_tables(url: str):
+        """
+        检查所需的核心表是否存在，如果都不存在，则执行 SQL 文件进行初始化。
+        """
+        required_tables = {'tur_chat_history', 'tur_chat_sessions', 'tur_users'}
+        print(f"正在检查数据库 '{sqlalchemy.make_url(url).database}' 中是否已存在核心表...")
+
+        try:
+            engine = sqlalchemy.create_engine(url)
+            inspector = sqlalchemy.inspect(engine)
+            existing_tables = set(inspector.get_table_names())
+
+            # 检查 required_tables 中的任何一个是否存在于数据库中
+            # `isdisjoint` 会在两个集合没有共同元素时返回 True
+            if required_tables.isdisjoint(existing_tables):
+                print("核心表 'tur_chat_history', 'tur_chat_sessions', 'tur_users' 均不存在。")
+                # 调用函数执行 SQL 文件
+                execute_sql_file(url)
+            else:
+                # 找出哪些表已存在
+                found_tables = required_tables.intersection(existing_tables)
+                print(f"检测到已存在的表: {', '.join(found_tables)}。跳过 SQL 脚本执行。")
+
+        except Exception as e:
+            print(f"检查表是否存在时发生错误: {e}")
             raise
 
 
-    ROOT_USER=config.DB_USER
-    ROOT_PASSWORD=config.DB_PASSWORD
-    HOST=config.DB_HOST
-    DB_NAME=config.DB_NAME
-    DB_PORT=config.DB_PORT
-    db_url_to_check_and_create = f"mysql+pymysql://{ROOT_USER}:{ROOT_PASSWORD}@{HOST}:{DB_PORT}/{DB_NAME}"
+    # --- 执行流程 ---
+    # 1. 构建数据库连接URL
+    db_url = f"mysql+pymysql://{config.DB_USER}:{config.DB_PASSWORD}@{config.DB_HOST}:{config.DB_PORT}/{config.DB_NAME}"
+    print("--- 启动数据库初始化流程 ---")
+    try:
+        # 2. 确保数据库本身存在
+        create_database(db_url)
+        # 3. 检查表是否存在，并根据情况决定是否执行SQL文件
+        check_and_initialize_tables(db_url)
+        print("\n--- 数据库初始化流程完成 ---")
+    except Exception as e:
+        print(f"\n初始化流程因错误而终止: {e}")
 
-    # --- 运行示例 ---
-    print("--- 创建MariaDB数据库 ---")
-    create_database_if_not_exists(db_url_to_check_and_create)
-
-    print("\n--- 检查MariaDB是否已存在 ---")
-    create_database_if_not_exists(db_url_to_check_and_create)
 
 
 async def init_chromadb(datasets: pd.DataFrame):
