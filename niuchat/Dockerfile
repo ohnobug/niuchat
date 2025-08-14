@@ -11,7 +11,8 @@ RUN pip install --no-cache-dir --upgrade pip -i https://pypi.tuna.tsinghua.edu.c
 
 COPY . .
 
-EXPOSE 9000
+EXPOSE 9001
 
 # CMD sh -c "python try_connect.py && python try_init_db.py && gunicorn main:app --workers $((1 * $(nproc) + 1)) --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:9000"
-CMD sh -c "python try_connect.py && python try_init_db.py && gunicorn main:app --workers 2 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:9000"
+# CMD sh -c "python try_connect.py && python try_init_db.py && uvicorn sse:app --workers 1 --host 0.0.0.0 --port 9001"
+CMD sh -c "python try_init_db.py && uvicorn sse:app --workers 1 --host 0.0.0.0 --port 9001"

@@ -219,7 +219,7 @@ async def stream_chat_generator(
                 if match:
                     token_text = match.group(2)
                     url = match.group(3)
-                    payload.update({"type": "reference", "title": token_text, "url": url})
+                    payload.update({"type": "reference", "title": token_text, "url": f"/mecs/web?url={url}"})
             else:
                 payload.update({"type": "text", "content": content_to_process})
 
