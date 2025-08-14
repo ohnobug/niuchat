@@ -3,6 +3,8 @@ FROM harbor1.xd.local/devops/python:3.10-slim-bullseye-v1
 
 WORKDIR /app
 
+RUN wget -O newqa_with_embeddings.xlsx -c http://download.xd.local/niuchat/newqa_with_embeddings.xlsx
+
 # ENV PYTHONDONTWRITEBYTECODE=1
 # ENV PYTHONUNBUFFERED=1
 
