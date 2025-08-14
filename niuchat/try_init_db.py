@@ -18,15 +18,17 @@ def init_mariadb():
     """
     def database_exists(url: str) -> bool:
         """检查给定的 MariaDB/MySQL 数据库是否存在。"""
+        engine = sqlalchemy.create_engine(url)
         try:
-            engine = sqlalchemy.create_engine(url)
             with engine.connect():
                 return True
         except OperationalError as e:
             if e.orig and e.orig.args[0] == 1049: # Unknown database
                 return False
             raise
-
+        finally:
+            print("Disposing database engine...")
+            engine.dispose()
 
     def create_database(url: str):
         """如果数据库不存在，则创建它。"""
@@ -39,8 +41,8 @@ def init_mariadb():
         db_name_to_create = parsed_url.database
         server_url = parsed_url.set(database="")
       
+        engine = sqlalchemy.create_engine(server_url)
         try:
-            engine = sqlalchemy.create_engine(server_url)
             with engine.connect() as connection:
                 create_db_command = sqlalchemy.text(f"CREATE DATABASE IF NOT EXISTS `{db_name_to_create}` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci")
                 connection.execute(create_db_command)
@@ -50,7 +52,9 @@ def init_mariadb():
             print(f"创建数据库失败。请检查用户权限和连接信息。")
             print(f"错误: {e}")
             raise
-
+        finally:
+            print("Disposing database engine...")
+            engine.dispose()
     
     def execute_sql_file(url: str):
         """读取并执行指定的 SQL 文件来创建表。"""
@@ -73,7 +77,9 @@ def init_mariadb():
         except Exception as e:
             print(f"执行 SQL 脚本时发生错误: {e}")
             raise
-
+        finally:
+            print("Disposing database engine...")
+            engine.dispose()
     
     # --- 核心逻辑：检查并初始化表 ---
     def check_and_initialize_tables(url: str):
@@ -102,6 +108,9 @@ def init_mariadb():
         except Exception as e:
             print(f"检查表是否存在时发生错误: {e}")
             raise
+        finally:
+            print("Disposing database engine...")
+            engine.dispose()
 
 
     # --- 执行流程 ---
